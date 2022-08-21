@@ -42,7 +42,7 @@ libraryDependencies ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "io.github.edadma" %%% "libpq" % "0.0.1",
+  "io.github.edadma" %%% "libpq" % "0.0.3",
 )
 
 publishMavenStyle := true
