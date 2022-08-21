@@ -1,4 +1,4 @@
-name := "-template"
+name := "pg"
 
 version := "0.0.1"
 
@@ -41,8 +41,9 @@ libraryDependencies ++= Seq(
   "io.github.spritzsn" %%% "spritz" % "0.0.6",
 )
 
-//libraryDependencies ++= Seq(
-//)
+libraryDependencies ++= Seq(
+  "io.github.edadma" %%% "libpq" % "0.0.1",
+)
 
 publishMavenStyle := true
 
