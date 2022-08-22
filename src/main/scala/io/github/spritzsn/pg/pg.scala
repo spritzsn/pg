@@ -12,50 +12,55 @@ def query(sql: String): Future[Result] =
   val promise = Promise[Result]()
   val conn = connectdb("dbname=postgres user=postgres password=docker host=localhost")
 
-  def error(msg: String): Nothing =
+  def error(msg: String): Unit =
     conn.finish()
-    sys.error(msg)
+    promise.failure(new RuntimeException(msg))
 
-  if conn.status == ConnStatus.BAD then error(s"connectdb() failed: ${conn.errorMessage}")
+  if conn.status == ConnStatus.BAD then error(s"connection failed: ${conn.errorMessage}")
+  else
+    val socket = conn.socket
 
-  val socket = conn.socket
+    if socket < 0 then error(s"bad socket: $socket: ${conn.errorMessage}")
+    else
+      val sendres = conn.sendQuery(sql)
 
-  if socket < 0 then error(s"bad socket: $socket: ${conn.errorMessage}")
+      if !sendres then error(s"sendQuery() failed: ${conn.errorMessage}")
+      else
+        val buf = new ArrayBuffer[ArraySeq[Any]]
+        var columns: ArraySeq[String] = null
+        val poll = defaultLoop.poll(socket)
 
-  val sendres = conn.sendQuery(sql)
+        def pollCallback(poll: Poll, status: Int, events: Int): Unit =
+          if !conn.consumeInput then error(s"consumeInput() failed: ${conn.errorMessage}")
 
-  if !sendres then error(s"sendQuery() failed: ${conn.errorMessage}")
+          while conn.isBusy do if !conn.consumeInput then error(s"consumeInput() failed: ${conn.errorMessage}")
 
-  val buf = new ArrayBuffer[ArraySeq[Any]]
-  var columns: ArraySeq[String] = null
-  val poll = defaultLoop.poll(socket)
+          @tailrec
+          def results(): Unit =
+            val res = conn.getResult
 
-  def pollCallback(poll: Poll, status: Int, events: Int): Unit =
-    if !conn.consumeInput then error(s"consumeInput() failed: ${conn.errorMessage}")
+            if !res.isNull then
+              val rows = res.ntuples
+              val cols = res.nfields
 
-    while conn.isBusy do if !conn.consumeInput then error(s"consumeInput() failed: ${conn.errorMessage}")
+              if columns == null then columns = (for i <- 0 until cols yield res.fname(i)) to ArraySeq
+              for i <- 0 until rows do buf += (for j <- 0 until cols yield res.getvalue(i, j)) to ArraySeq
 
-    @tailrec
-    def results(): Unit =
-      val res = conn.getResult
+              res.clear()
+              results()
 
-      if !res.isNull then
-        val rows = res.ntuples
-        val cols = res.nfields
+          results()
+          poll.stop
+          poll.dispose()
+          conn.finish()
+          promise.success(new Result(columns, buf to ArraySeq))
+        end pollCallback
 
-        if columns == null then columns = (for i <- 0 until cols yield res.fname(i)) to ArraySeq
-        for i <- 0 until rows do buf += (for j <- 0 until cols yield res.getvalue(i, j)) to ArraySeq
+        poll.start(UV_READABLE, pollCallback)
+      end if
+    end if
+  end if
 
-        res.clear()
-        results()
-
-    results()
-    poll.stop
-    poll.dispose()
-    conn.finish()
-    promise.success(new Result(columns, buf to ArraySeq))
-
-  poll.start(UV_READABLE, pollCallback)
   promise.future
 
 class Result(val columns: ArraySeq[String], val data: ArraySeq[ArraySeq[Any]]):
