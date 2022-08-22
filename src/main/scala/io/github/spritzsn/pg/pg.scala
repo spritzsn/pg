@@ -32,28 +32,35 @@ def query(sql: String): Future[Result] =
 
         def pollCallback(poll: Poll, status: Int, events: Int): Unit =
           if !conn.consumeInput then error(s"consumeInput() failed: ${conn.errorMessage}")
+          else
+            var consumeres: Boolean = true
 
-          while conn.isBusy do if !conn.consumeInput then error(s"consumeInput() failed: ${conn.errorMessage}")
+            while conn.isBusy && consumeres do consumeres = conn.consumeInput
 
-          @tailrec
-          def results(): Unit =
-            val res = conn.getResult
+            if !consumeres then error(s"consumeInput() failed: ${conn.errorMessage}")
+            else
+              @tailrec
+              def results(): Unit =
+                val res = conn.getResult
 
-            if !res.isNull then
-              val rows = res.ntuples
-              val cols = res.nfields
+                if !res.isNull then
+                  val rows = res.ntuples
+                  val cols = res.nfields
 
-              if columns == null then columns = (for i <- 0 until cols yield res.fname(i)) to ArraySeq
-              for i <- 0 until rows do buf += (for j <- 0 until cols yield res.getvalue(i, j)) to ArraySeq
+                  if columns == null then columns = (for i <- 0 until cols yield res.fname(i)) to ArraySeq
+                  for i <- 0 until rows do buf += (for j <- 0 until cols yield res.getvalue(i, j)) to ArraySeq
 
-              res.clear()
+                  res.clear()
+                  results()
+              end results
+
               results()
-
-          results()
-          poll.stop
-          poll.dispose()
-          conn.finish()
-          promise.success(new Result(columns, buf to ArraySeq))
+              poll.stop
+              poll.dispose()
+              conn.finish()
+              promise.success(new Result(columns, buf to ArraySeq))
+            end if
+          end if
         end pollCallback
 
         poll.start(UV_READABLE, pollCallback)
