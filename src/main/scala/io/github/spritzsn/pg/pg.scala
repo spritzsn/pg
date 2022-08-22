@@ -28,7 +28,6 @@ def query(sql: String): Future[Result] =
 
   val buf = new ArrayBuffer[ArraySeq[Any]]
   var columns: ArraySeq[String] = null
-
   val poll = defaultLoop.poll(socket)
 
   def pollCallback(poll: Poll, status: Int, events: Int): Unit =
