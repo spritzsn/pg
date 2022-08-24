@@ -8,9 +8,9 @@ import io.github.spritzsn.libuv.*
 import scala.annotation.tailrec
 import scala.collection.mutable.ArrayBuffer
 
-def query(sql: String): Future[Result] =
+def query(conninfo: String, sql: String): Future[Result] =
   val promise = Promise[Result]()
-  val conn = connectdb("dbname=postgres user=postgres password=docker host=localhost")
+  val conn = connectdb(conninfo)
 
   def error(msg: String): Unit =
     conn.finish()
