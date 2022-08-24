@@ -58,7 +58,7 @@ def query(conninfo: String, sql: String): Future[Result] =
               poll.stop
               poll.dispose()
               conn.finish()
-              promise.success(new Result(columns, buf to ArraySeq))
+              promise.success(Result(columns, buf to ArraySeq))
             end if
           end if
         end pollCallback
@@ -70,6 +70,4 @@ def query(conninfo: String, sql: String): Future[Result] =
 
   promise.future
 
-class Result(val columns: ArraySeq[String], val data: ArraySeq[ArraySeq[Any]]):
-  override def toString: String =
-    columns.toString ++ "\n" ++ data.mkString("\n")
+case class Result(columns: ArraySeq[String], data: ArraySeq[ArraySeq[Any]])
