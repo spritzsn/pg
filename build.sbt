@@ -1,6 +1,6 @@
 name := "pg"
 
-version := "0.0.4"
+version := "0.0.5"
 
 scalaVersion := "3.1.3"
 

@@ -31,6 +31,9 @@ def query(conninfo: String, sql: String): Future[Result] =
         val poll = defaultLoop.poll(socket)
 
         def pollCallback(poll: Poll, status: Int, events: Int): Unit =
+          poll.stop
+          poll.dispose()
+
           if !conn.consumeInput then error(s"consumeInput() failed: ${conn.errorMessage}")
           else
             var consumeres: Boolean = true
@@ -55,8 +58,6 @@ def query(conninfo: String, sql: String): Future[Result] =
               end results
 
               results()
-              poll.stop
-              poll.dispose()
               conn.finish()
               promise.success(Result(columns, buf to ArraySeq))
             end if
