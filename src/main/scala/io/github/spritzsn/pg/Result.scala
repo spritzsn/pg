@@ -29,6 +29,8 @@ class Result(val columns: ArraySeq[String], val types: ArraySeq[Oid], val data: 
 
     def toInstant: Instant = v.asInstanceOf[Instant]
 
+    def isNull: Boolean = v == null
+
     override def toString: String = v.toString
 
   class Row private[Result] (idx: Int) extends Dynamic:
