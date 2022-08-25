@@ -41,6 +41,7 @@ def query(conninfo: String, sql: String): Future[Result] =
             while conn.isBusy && consumeres do consumeres = conn.consumeInput
 
             if !consumeres then error(s"consumeInput() failed: ${conn.errorMessage}")
+            else if conn.errorMessage.nonEmpty then error(conn.errorMessage)
             else
               @tailrec
               def results(): Unit =
