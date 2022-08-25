@@ -1,6 +1,6 @@
 name := "pg"
 
-version := "0.0.7"
+version := "0.0.8"
 
 scalaVersion := "3.1.3"
 
@@ -43,6 +43,7 @@ libraryDependencies ++= Seq(
 
 libraryDependencies ++= Seq(
   "io.github.edadma" %%% "libpq" % "0.0.5",
+  "io.github.edadma" %%% "table" % "1.0.3",
 )
 
 publishMavenStyle := true

@@ -65,7 +65,7 @@ def query(conninfo: String, sql: String): Future[Result] =
 
               results()
               conn.finish()
-              promise.success(Result(columns, types, buf to ArraySeq))
+              promise.success(new Result(columns, types, buf to ArraySeq))
             end if
           end if
         end pollCallback
@@ -91,5 +91,3 @@ def value(res: libpq.Result, row: Int, col: Int): Any =
       case NUMERICOID            => BigDecimal(v)
       case FLOAT4OID | FLOAT8OID => v.toDouble
       case _                     => v
-
-case class Result(columns: ArraySeq[String], types: ArraySeq[Oid], data: ArraySeq[ArraySeq[Any]])
