@@ -10,6 +10,12 @@ class Result(val columns: ArraySeq[String], val types: ArraySeq[Oid], val data: 
     extends Dynamic:
   private val columnMap = columns.zipWithIndex.toMap
 
+  def isEmpty: Boolean = data.isEmpty
+
+  def nonEmpty: Boolean = data.nonEmpty
+
+  def length: Int = data.length
+
   class Value private[Result] (name: String, row: Int):
     private val v =
       columnMap get name match
