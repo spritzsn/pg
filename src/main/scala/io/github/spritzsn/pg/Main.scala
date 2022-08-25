@@ -6,9 +6,11 @@
 //
 //import scala.util.{Failure, Success}
 //
+//// dbname=postgres user=postgres password=docker
+//
 //@main def run(): Unit =
-//  query("dbname=postgres user=postgres password=docker host=localhost", "select * from rep limit 1") onComplete {
-//    case Success(value)     => println(value.name)
+//  query("dbname=sc user=sc password=sc port=5442 host=localhost", "select * from eta") onComplete {
+//    case Success(value)     => println(value)
 //    case Failure(exception) => println(s"exception: ${exception.getMessage}")
 //  }
 //  defaultLoop.run()

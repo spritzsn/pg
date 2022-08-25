@@ -3,9 +3,10 @@ package io.github.spritzsn.pg
 import scala.collection.immutable.ArraySeq
 import scala.concurrent.{Future, Promise}
 import io.github.edadma.libpq
-import io.github.edadma.libpq.{connectDB, Oid, ConnStatus}
+import io.github.edadma.libpq.{ConnStatus, Oid, connectDB}
 import io.github.spritzsn.libuv.*
 
+import java.time.{LocalDateTime, ZoneOffset}
 import scala.annotation.tailrec
 import scala.collection.mutable.ArrayBuffer
 
@@ -77,7 +78,9 @@ def query(conninfo: String, sql: String): Future[Result] =
 
   promise.future
 
-def value(res: libpq.Result, row: Int, col: Int): Any =
+private val DATE = """(\d\d\d\d)-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)(?:.(\d+))?""".r
+
+private def value(res: libpq.Result, row: Int, col: Int): Any =
   import Oid.*
 
   if res.getIsNull(row, col) then null
@@ -90,4 +93,12 @@ def value(res: libpq.Result, row: Int, col: Int): Any =
       case INT8OID               => v.toLong
       case NUMERICOID            => BigDecimal(v)
       case FLOAT4OID | FLOAT8OID => v.toDouble
-      case _                     => v
+      case TIMESTAMPOID =>
+        v match
+          case DATE(y, m, d, h, mins, s, f) =>
+            val nanos = if f == null then 0 else (f ++ "0" * (9 - f.length)).toInt
+            val t = LocalDateTime.of(y.toInt, m.toInt, d.toInt, h.toInt, mins.toInt, s.toInt, nanos)
+
+            t.toInstant(ZoneOffset.UTC)
+          case _ => sys.error(s"error parsing timestamp: $v")
+      case _ => v

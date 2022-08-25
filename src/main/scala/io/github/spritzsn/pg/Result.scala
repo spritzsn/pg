@@ -3,6 +3,7 @@ package io.github.spritzsn.pg
 import io.github.edadma.libpq.Oid
 import io.github.edadma.table.TextTable
 
+import java.time.Instant
 import scala.collection.immutable.ArraySeq
 import scala.language.dynamics
 
@@ -25,6 +26,8 @@ class Result(val columns: ArraySeq[String], val types: ArraySeq[Oid], val data: 
     def toInt: Int = v.asInstanceOf[Int]
 
     def toDouble: Double = v.asInstanceOf[Double]
+
+    def toInstant: Instant = v.asInstanceOf[Instant]
 
     override def toString: String = v.toString
 

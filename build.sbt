@@ -1,6 +1,6 @@
 name := "pg"
 
-version := "0.0.11"
+version := "0.0.12"
 
 scalaVersion := "3.1.3"
 
@@ -45,6 +45,8 @@ libraryDependencies ++= Seq(
   "io.github.edadma" %%% "libpq" % "0.0.5",
   "io.github.edadma" %%% "table" % "1.0.3",
 )
+
+libraryDependencies += "io.github.cquiroz" %%% "scala-java-time" % "2.4.0"
 
 publishMavenStyle := true
 
