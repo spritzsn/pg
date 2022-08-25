@@ -2,7 +2,8 @@ package io.github.spritzsn.pg
 
 import scala.collection.immutable.ArraySeq
 import scala.concurrent.{Future, Promise}
-import io.github.edadma.libpq.*
+import io.github.edadma.libpq
+import io.github.edadma.libpq.{connectDB, Oid, ConnStatus}
 import io.github.spritzsn.libuv.*
 
 import scala.annotation.tailrec
@@ -10,7 +11,7 @@ import scala.collection.mutable.ArrayBuffer
 
 def query(conninfo: String, sql: String): Future[Result] =
   val promise = Promise[Result]()
-  val conn = connectdb(conninfo)
+  val conn = connectDB(conninfo)
 
   def error(msg: String): Unit =
     conn.finish()
@@ -28,6 +29,7 @@ def query(conninfo: String, sql: String): Future[Result] =
       else
         val buf = new ArrayBuffer[ArraySeq[Any]]
         var columns: ArraySeq[String] = null
+        var types: ArraySeq[Oid] = null
         val poll = defaultLoop.poll(socket)
 
         def pollCallback(poll: Poll, status: Int, events: Int): Unit =
@@ -48,11 +50,14 @@ def query(conninfo: String, sql: String): Future[Result] =
                 val res = conn.getResult
 
                 if !res.isNull then
-                  val rows = res.ntuples
-                  val cols = res.nfields
+                  val rows = res.nTuples
+                  val cols = res.nFields
 
-                  if columns == null then columns = (for i <- 0 until cols yield res.fname(i)) to ArraySeq
-                  for i <- 0 until rows do buf += (for j <- 0 until cols yield res.getvalue(i, j)) to ArraySeq
+                  if columns == null then
+                    columns = (for i <- 0 until cols yield res.fName(i)) to ArraySeq
+                    types = (for i <- 0 until cols yield res.fType(i)) to ArraySeq
+
+                  for i <- 0 until rows do buf += (for j <- 0 until cols yield value(res, i, j)) to ArraySeq
 
                   res.clear()
                   results()
@@ -60,7 +65,7 @@ def query(conninfo: String, sql: String): Future[Result] =
 
               results()
               conn.finish()
-              promise.success(Result(columns, buf to ArraySeq))
+              promise.success(Result(columns, types, buf to ArraySeq))
             end if
           end if
         end pollCallback
@@ -72,4 +77,19 @@ def query(conninfo: String, sql: String): Future[Result] =
 
   promise.future
 
-case class Result(columns: ArraySeq[String], data: ArraySeq[ArraySeq[Any]])
+def value(res: libpq.Result, row: Int, col: Int): Any =
+  import Oid.*
+
+  if res.getIsNull(row, col) then null
+  else
+    val v = res.getValue(row, col)
+
+    res.fType(col) match
+      case BOOLOID               => v == "t"
+      case INT2OID | INT4OID     => v.toInt
+      case INT8OID               => v.toLong
+      case NUMERICOID            => BigDecimal(v)
+      case FLOAT4OID | FLOAT8OID => v.toDouble
+      case _                     => v
+
+case class Result(columns: ArraySeq[String], types: ArraySeq[Oid], data: ArraySeq[ArraySeq[Any]])
