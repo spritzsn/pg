@@ -9,26 +9,20 @@ import io.github.spritzsn.async.*
 
 class Pool(connInfo: String, maxConnections: Int = 10):
   private val available = new mutable.Queue[Connection]
-  private val unavailable = new mutable.HashSet[Connection]
+  private var used = 0
 
   enqueue
 
   def close(): Unit =
-    if unavailable.nonEmpty then
-      println("Pool.close: there are still connections in the 'unavailable' queue that will be closed")
-
+    if used > 0 then Console.err.println("Pool.close: there are connections still in use that will not be closed")
     available foreach (_.finish())
     available.clear()
-    unavailable foreach (_.finish())
-    unavailable.clear()
 
   def connection: Future[Connection] =
     if available.nonEmpty then
-      val conn = available.dequeue
-
-      unavailable += conn
-      Future(conn)
-    else if unavailable.size < maxConnections then Future(enqueue)
+      used += 1
+      Future(available.dequeue)
+    else if used < maxConnections then Future(enqueue)
     else Future.unit flatMap (_ => connection)
 
   private def enqueue: Connection =
@@ -38,9 +32,10 @@ class Pool(connInfo: String, maxConnections: Int = 10):
         conn
       case Left(error) => sys.error(s"connection failed: $error")
 
-  def query(sql: String): Future[Result] = connection flatMap (conn =>
-    io.github.spritzsn.pg.query(conn, sql) andThen (_ => {
-      available enqueue conn
-      unavailable -= conn
-    })
-  )
+  def query(sql: String): Future[Result] =
+    connection flatMap (conn =>
+      io.github.spritzsn.pg.query(conn, sql) andThen { _ =>
+        available enqueue conn
+        used -= 1
+      }
+    )
