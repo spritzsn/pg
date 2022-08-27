@@ -3,80 +3,96 @@ package io.github.spritzsn.pg
 import scala.collection.immutable.ArraySeq
 import scala.concurrent.{Future, Promise}
 import io.github.edadma.libpq
-import io.github.edadma.libpq.{ConnStatus, Oid, connectDB}
+import io.github.edadma.libpq.{ConnStatus, Oid, connectDB, Connection}
 import io.github.spritzsn.libuv.*
+import io.github.spritzsn.async.*
 
 import java.time.{LocalDateTime, ZoneOffset}
 import scala.annotation.tailrec
 import scala.collection.mutable.ArrayBuffer
 
-def query(conninfo: String, sql: String): Future[Result] =
+def connect(connInfo: String): Either[String, Connection] =
+  val conn = connectDB(connInfo)
+
+  if conn.status == ConnStatus.BAD then
+    val error = conn.errorMessage
+
+    conn.finish()
+    Left(error)
+  else Right(conn)
+
+def query(conn: Connection, sql: String): Future[Result] =
   val promise = Promise[Result]()
-  val conn = connectDB(conninfo)
+
+  def fail(msg: String): Unit = promise.failure(new RuntimeException(msg))
 
   def error(msg: String): Unit =
     conn.finish()
-    promise.failure(new RuntimeException(msg))
+    fail(msg)
 
-  if conn.status == ConnStatus.BAD then error(s"connection failed: ${conn.errorMessage}")
+  val socket = conn.socket
+
+  if socket < 0 then error(s"bad socket: $socket: ${conn.errorMessage}")
   else
-    val socket = conn.socket
+    val sendres = conn.sendQuery(sql)
 
-    if socket < 0 then error(s"bad socket: $socket: ${conn.errorMessage}")
+    if !sendres then error(s"sendQuery() failed: ${conn.errorMessage}")
     else
-      val sendres = conn.sendQuery(sql)
+      val buf = new ArrayBuffer[ArraySeq[Any]]
+      var columns: ArraySeq[String] = null
+      var types: ArraySeq[Oid] = null
+      val poll = defaultLoop.poll(socket)
 
-      if !sendres then error(s"sendQuery() failed: ${conn.errorMessage}")
-      else
-        val buf = new ArrayBuffer[ArraySeq[Any]]
-        var columns: ArraySeq[String] = null
-        var types: ArraySeq[Oid] = null
-        val poll = defaultLoop.poll(socket)
+      def pollCallback(poll: Poll, status: Int, events: Int): Unit =
+        poll.stop
+        poll.dispose()
 
-        def pollCallback(poll: Poll, status: Int, events: Int): Unit =
-          poll.stop
-          poll.dispose()
+        if !conn.consumeInput then error(s"consumeInput() failed: ${conn.errorMessage}")
+        else
+          var consumeres: Boolean = true
 
-          if !conn.consumeInput then error(s"consumeInput() failed: ${conn.errorMessage}")
+          while conn.isBusy && consumeres do consumeres = conn.consumeInput
+
+          if !consumeres then error(s"consumeInput() failed: ${conn.errorMessage}")
+          else if conn.errorMessage.nonEmpty then error(conn.errorMessage)
           else
-            var consumeres: Boolean = true
+            @tailrec
+            def results(): Unit =
+              val res = conn.getResult
 
-            while conn.isBusy && consumeres do consumeres = conn.consumeInput
+              if !res.isNull then
+                val rows = res.nTuples
+                val cols = res.nFields
 
-            if !consumeres then error(s"consumeInput() failed: ${conn.errorMessage}")
-            else if conn.errorMessage.nonEmpty then error(conn.errorMessage)
-            else
-              @tailrec
-              def results(): Unit =
-                val res = conn.getResult
+                if columns == null then
+                  columns = (for i <- 0 until cols yield res.fName(i)) to ArraySeq
+                  types = (for i <- 0 until cols yield res.fType(i)) to ArraySeq
 
-                if !res.isNull then
-                  val rows = res.nTuples
-                  val cols = res.nFields
+                for i <- 0 until rows do buf += (for j <- 0 until cols yield value(res, i, j)) to ArraySeq
 
-                  if columns == null then
-                    columns = (for i <- 0 until cols yield res.fName(i)) to ArraySeq
-                    types = (for i <- 0 until cols yield res.fType(i)) to ArraySeq
+                res.clear()
+                results()
+            end results
 
-                  for i <- 0 until rows do buf += (for j <- 0 until cols yield value(res, i, j)) to ArraySeq
-
-                  res.clear()
-                  results()
-              end results
-
-              results()
-              conn.finish()
-              promise.success(new Result(columns, types, buf to ArraySeq))
-            end if
+            results()
+            conn.finish()
+            promise.success(new Result(columns, types, buf to ArraySeq))
           end if
-        end pollCallback
+        end if
+      end pollCallback
 
-        poll.start(UV_READABLE, pollCallback)
-      end if
-    end if
+      poll.start(UV_READABLE, pollCallback)
   end if
 
   promise.future
+end query
+
+def query(connInfo: String, sql: String): Future[Result] =
+  connect(connInfo) match
+    case Left(error) => Promise.failed(new RuntimeException(s"connection failed: $error")).future
+    case Right(conn) => query(conn, sql)
+  end match
+end query
 
 private val DATE = """(\d\d\d\d)-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)(?:.(\d+))?""".r
 
