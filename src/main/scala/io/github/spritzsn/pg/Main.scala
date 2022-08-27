@@ -6,10 +6,10 @@
 //
 //import scala.util.{Failure, Success}
 //
-//// dbname=postgres user=postgres password=docker
-//
 //@main def run(): Unit =
-//  query("dbname=sc user=sc password=sc port=5442 host=localhost", "select * from eta") onComplete {
+//  val pool = new Pool("dbname=postgres user=postgres password=docker host=localhost")
+//
+//  pool.query("select * from cars") andThen (_ => pool.close()) onComplete {
 //    case Success(value)     => println(value)
 //    case Failure(exception) => println(s"exception: ${exception.getMessage}")
 //  }

@@ -75,7 +75,6 @@ def query(conn: Connection, sql: String): Future[Result] =
             end results
 
             results()
-            conn.finish()
             promise.success(new Result(columns, types, buf to ArraySeq))
           end if
         end if
