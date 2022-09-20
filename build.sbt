@@ -1,8 +1,8 @@
 name := "pg"
 
-version := "0.0.15"
+version := "0.0.16"
 
-scalaVersion := "3.1.3"
+scalaVersion := "3.2.0"
 
 enablePlugins(ScalaNativePlugin)
 
@@ -38,12 +38,12 @@ homepage := Some(url("https://github.com/spritzsn/" + name.value))
 //libraryDependencies += "org.scalatest" %%% "scalatest" % "3.2.13" % "test"
 
 libraryDependencies ++= Seq(
-  "io.github.spritzsn" %%% "async" % "0.0.9",
+  "io.github.spritzsn" %%% "async" % "0.0.13",
 )
 
 libraryDependencies ++= Seq(
-  "io.github.edadma" %%% "libpq" % "0.0.5",
-  "io.github.edadma" %%% "table" % "1.0.3",
+  "io.github.edadma" %%% "libpq" % "0.0.6",
+  "io.github.edadma" %%% "table" % "1.0.4",
 )
 
 libraryDependencies += "io.github.cquiroz" %%% "scala-java-time" % "2.4.0"
